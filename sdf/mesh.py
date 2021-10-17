@@ -4,7 +4,7 @@ from skimage import measure
 
 import multiprocessing
 import itertools
-import numpy as np
+import jax.numpy as np
 import time
 
 from . import progress, stl
@@ -22,7 +22,8 @@ def _cartesian_product(*arrays):
     dtype = np.result_type(*arrays)
     arr = np.empty([len(a) for a in arrays] + [la], dtype=dtype)
     for i, a in enumerate(np.ix_(*arrays)):
-        arr[...,i] = a
+        arr = arr.at[...,i].set(a)
+        #arr[...,i] = a
     return arr.reshape(-1, la)
 
 def _skip(sdf, job):
@@ -68,14 +69,14 @@ def _estimate_bounds(sdf):
         X = np.linspace(x0, x1, s)
         Y = np.linspace(y0, y1, s)
         Z = np.linspace(z0, z1, s)
-        d = np.array([X[1] - X[0], Y[1] - Y[0], Z[1] - Z[0]])
+        d = np.array([X[1] - X[0], Y[1] - Y[0], Z[1] - Z[0]]).to_py()
         threshold = np.linalg.norm(d) / 2
         if threshold == prev:
             break
         prev = threshold
         P = _cartesian_product(X, Y, Z)
         volume = sdf(P).reshape((len(X), len(Y), len(Z)))
-        where = np.argwhere(np.abs(volume) <= threshold)
+        where = np.argwhere(np.abs(volume) <= threshold).to_py()
         x1, y1, z1 = (x0, y0, z0) + where.max(axis=0) * d + d / 2
         x0, y0, z0 = (x0, y0, z0) + where.min(axis=0) * d - d / 2
     return ((x0, y0, z0), (x1, y1, z1))

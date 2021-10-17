@@ -1,15 +1,15 @@
 import functools
-import numpy as np
+import jax.numpy as jnp
 import operator
 
 from . import dn, d3, ease
 
 # Constants
 
-ORIGIN = np.array((0, 0))
+ORIGIN = jnp.array((0, 0))
 
-X = np.array((1, 0))
-Y = np.array((0, 1))
+X = jnp.array((1, 0))
+Y = jnp.array((0, 1))
 
 UP = Y
 
@@ -57,19 +57,19 @@ def op23(f):
 # Helpers
 
 def _length(a):
-    return np.linalg.norm(a, axis=1)
+    return jnp.linalg.norm(a, axis=1)
 
 def _normalize(a):
-    return a / np.linalg.norm(a)
+    return a / jnp.linalg.norm(a)
 
 def _dot(a, b):
-    return np.sum(a * b, axis=1)
+    return jnp.sum(a * b, axis=1)
 
 def _vec(*arrs):
-    return np.stack(arrs, axis=-1)
+    return jnp.stack(arrs, axis=-1)
 
-_min = np.minimum
-_max = np.maximum
+_min = jnp.minimum
+_max = jnp.maximum
 
 # Primitives
 
@@ -83,7 +83,7 @@ def circle(radius=1, center=ORIGIN):
 def line(normal=UP, point=ORIGIN):
     normal = _normalize(normal)
     def f(p):
-        return np.dot(point - p, normal)
+        return jnp.dot(point - p, normal)
     return f
 
 @sdf2
@@ -102,15 +102,15 @@ def slab(x0=None, y0=None, x1=None, y1=None, k=None):
 @sdf2
 def rectangle(size=1, center=ORIGIN, a=None, b=None):
     if a is not None and b is not None:
-        a = np.array(a)
-        b = np.array(b)
+        a = jnp.array(a)
+        b = jnp.array(b)
         size = b - a
         center = a + size / 2
         return rectangle(size, center)
-    size = np.array(size)
+    size = jnp.array(size)
     def f(p):
-        q = np.abs(p - center) - size / 2
-        return _length(_max(q, 0)) + _min(np.amax(q, axis=1), 0)
+        q = jnp.abs(p - center) - size / 2
+        return _length(_max(q, 0)) + _min(jnp.amax(q, axis=1), 0)
     return f
 
 @sdf2
@@ -122,12 +122,12 @@ def rounded_rectangle(size, radius, center=ORIGIN):
     def f(p):
         x = p[:,0]
         y = p[:,1]
-        r = np.zeros(len(p)).reshape((-1, 1))
-        r[np.logical_and(x > 0, y > 0)] = r0
-        r[np.logical_and(x > 0, y <= 0)] = r1
-        r[np.logical_and(x <= 0, y <= 0)] = r2
-        r[np.logical_and(x <= 0, y > 0)] = r3
-        q = np.abs(p) - size / 2 + r
+        r = jnp.zeros(len(p)).reshape((-1, 1))
+        r[jnp.logical_and(x > 0, y > 0)] = r0
+        r[jnp.logical_and(x > 0, y <= 0)] = r1
+        r[jnp.logical_and(x <= 0, y <= 0)] = r2
+        r[jnp.logical_and(x <= 0, y > 0)] = r3
+        q = jnp.abs(p) - size / 2 + r
         return (
             _min(_max(q[:,0], q[:,1]), 0).reshape((-1, 1)) +
             _length(_max(q, 0)).reshape((-1, 1)) - r)
@@ -138,60 +138,60 @@ def equilateral_triangle():
     def f(p):
         k = 3 ** 0.5
         p = _vec(
-            np.abs(p[:,0]) - 1,
+            jnp.abs(p[:,0]) - 1,
             p[:,1] + 1 / k)
         w = p[:,0] + k * p[:,1] > 0
         q = _vec(
             p[:,0] - k * p[:,1],
             -k * p[:,0] - p[:,1]) / 2
-        p = np.where(w.reshape((-1, 1)), q, p)
+        p = jnp.where(w.reshape((-1, 1)), q, p)
         p = _vec(
-            p[:,0] - np.clip(p[:,0], -2, 0),
+            p[:,0] - jnp.clip(p[:,0], -2, 0),
             p[:,1])
-        return -_length(p) * np.sign(p[:,1])
+        return -_length(p) * jnp.sign(p[:,1])
     return f
 
 @sdf2
 def hexagon(r):
     def f(p):
-        k = np.array((3 ** 0.5 / -2, 0.5, np.tan(np.pi / 6)))
-        p = np.abs(p)
+        k = jnp.array((3 ** 0.5 / -2, 0.5, jnp.tan(jnp.pi / 6)))
+        p = jnp.abs(p)
         p -= 2 * k[:2] * _min(_dot(k[:2], p), 0).reshape((-1, 1))
         p -= _vec(
-            np.clip(p[:,0], -k[2] * r, k[2] * r),
-            np.zeros(len(p)) + r)
-        return _length(p) * np.sign(p[:,1])
+            jnp.clip(p[:,0], -k[2] * r, k[2] * r),
+            jnp.zeros(len(p)) + r)
+        return _length(p) * jnp.sign(p[:,1])
     return f
 
 @sdf2
 def rounded_x(w, r):
     def f(p):
-        p = np.abs(p)
+        p = jnp.abs(p)
         q = (_min(p[:,0] + p[:,1], w) * 0.5).reshape((-1, 1))
         return _length(p - q) - r
     return f
 
 @sdf2
 def polygon(points):
-    points = [np.array(p) for p in points]
+    points = [jnp.array(p) for p in points]
     def f(p):
         n = len(points)
         d = _dot(p - points[0], p - points[0])
-        s = np.ones(len(p))
+        s = jnp.ones(len(p))
         for i in range(n):
             j = (i + n - 1) % n
             vi = points[i]
             vj = points[j]
             e = vj - vi
             w = p - vi
-            b = w - e * np.clip(np.dot(w, e) / np.dot(e, e), 0, 1).reshape((-1, 1))
+            b = w - e * jnp.clip(jnp.dot(w, e) / jnp.dot(e, e), 0, 1).reshape((-1, 1))
             d = _min(d, _dot(b, b))
             c1 = p[:,1] >= vi[1]
             c2 = p[:,1] < vj[1]
             c3 = e[0] * w[:,1] > e[1] * w[:,0]
             c = _vec(c1, c2, c3)
-            s = np.where(np.all(c, axis=1) | np.all(~c, axis=1), -s, s)
-        return s * np.sqrt(d)
+            s = jnp.where(jnp.all(c, axis=1) | jnp.all(~c, axis=1), -s, s)
+        return s * jnp.sqrt(d)
     return f
 
 # Positioning
@@ -208,7 +208,7 @@ def scale(other, factor):
         x, y = factor
     except TypeError:
         x = y = factor
-    s = (x, y)
+    s = jnp.array([x, y])
     m = min(x, y)
     def f(p):
         return other(p / s) * m
@@ -216,20 +216,20 @@ def scale(other, factor):
 
 @op2
 def rotate(other, angle):
-    s = np.sin(angle)
-    c = np.cos(angle)
+    s = jnp.sin(angle)
+    c = jnp.cos(angle)
     m = 1 - c
-    matrix = np.array([
+    matrix = jnp.array([
         [c, -s],
         [s, c],
     ]).T
     def f(p):
-        return other(np.dot(p, matrix))
+        return other(jnp.dot(p, matrix))
     return f
 
 @op2
 def circular_array(other, count):
-    angles = [i / count * 2 * np.pi for i in range(count)]
+    angles = [i / count * 2 * jnp.pi for i in range(count)]
     return union(*[other.rotate(a) for a in angles])
 
 # Alterations
@@ -237,7 +237,7 @@ def circular_array(other, count):
 @op2
 def elongate(other, size):
     def f(p):
-        q = np.abs(p) - size
+        q = jnp.abs(p) - size
         x = q[:,0].reshape((-1, 1))
         y = q[:,1].reshape((-1, 1))
         w = _min(_max(x, y), 0)
@@ -250,7 +250,7 @@ def elongate(other, size):
 def extrude(other, h):
     def f(p):
         d = other(p[:,[0,1]])
-        w = _vec(d.reshape(-1), np.abs(p[:,2]) - h / 2)
+        w = _vec(d.reshape(-1), jnp.abs(p[:,2]) - h / 2)
         return _min(_max(w[:,0], w[:,1]), 0) + _length(_max(w, 0))
     return f
 
@@ -259,9 +259,9 @@ def extrude_to(a, b, h, e=ease.linear):
     def f(p):
         d1 = a(p[:,[0,1]])
         d2 = b(p[:,[0,1]])
-        t = e(np.clip(p[:,2] / h, -0.5, 0.5) + 0.5)
+        t = e(jnp.clip(p[:,2] / h, -0.5, 0.5) + 0.5)
         d = d1 + (d2 - d1) * t.reshape((-1, 1))
-        w = _vec(d.reshape(-1), np.abs(p[:,2]) - h / 2)
+        w = _vec(d.reshape(-1), jnp.abs(p[:,2]) - h / 2)
         return _min(_max(w[:,0], w[:,1]), 0) + _length(_max(w, 0))
     return f
 

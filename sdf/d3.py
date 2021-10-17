@@ -1,5 +1,5 @@
 import functools
-import numpy as np
+import jax.numpy as np
 import operator
 
 from . import dn, d2, ease, mesh
